@@ -59,6 +59,10 @@ public:
     Node(InternalRNG, TRNG*, uint64_t);
 
     // state modifiers
+    // reshuffle changes rng seed of the current node and re-registers it
+    // so that when such node is requested in the future its values are
+    // the same. Note that it does not change the values of previous copies
+    // of this node (or its children) taken!
     void reshuffle();
 
     // tree descenders
@@ -107,9 +111,6 @@ private:
     std::unordered_map<uint64_t, Node> modified_nodes;
     friend class Node;
 };
-
-
-// TODO: how to make the structure modifiable, preferably without affecting the size too much?
 
 
 } // namespace TRNG

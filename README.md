@@ -1,10 +1,14 @@
 # TRNG
-tree-like rng for gamedev applications. Behaves like a `json`-like structure
-with random values in every node. Mixing integer and string keys will result in
-a runtime error (exception thrown).
+Stateless tree-like rng for gamedev applications. Behaves as a `json`-like
+structure with random values in every node dependent only on the seed and
+the path. Mixing integer and string keys is not recommended will result
+in a safeguard runtime error (exception thrown) or possibly RNG values
+repeating if the safeguard is bypassed!
 
 
 ## Example
+
+Or read and run `main.cc`
 ```
 root.u64()                3b2c8aefd44be966
 root[0].u64()             d28b1dc8bd364bab
@@ -21,4 +25,5 @@ root[42].u64()            1bcf06cd0587fb16
 ```
 
 ## Compilation
-Simply compile `trng.cc` and include `trng.hh`. Requires `--std=c++20` and `-lcrypto`.
+Simply compile and link to your project `trng.cc` and include `trng.hh`.
+Requires `--std=c++20` and `-lcrypto`.
