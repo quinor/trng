@@ -32,15 +32,16 @@ public:
     InternalRNG(RNGState);
 
     // value accessors
-    uint64_t get_id() const;
+    uint64_t get_id(uint64_t) const;
     uint64_t get_value(uint64_t) const;
     InternalRNG descend(int64_t) const;
-    // void reshuffle();
+    void reshuffle();
 
 private:
+    RNGState aes(uint64_t) const;
+
     RNGState key;
-    RNGState aes(RNGState) const;
-    // uint64_t revision;
+    uint64_t revision;
 };
 
 
@@ -54,7 +55,11 @@ class Node
 {
 public:
     // constructors
+    Node();
     Node(InternalRNG, TRNG*, uint64_t);
+
+    // state modifiers
+    void reshuffle();
 
     // tree descenders
     Node operator[](const std::string&) const;
@@ -72,10 +77,15 @@ public:
     std::vector<double>&& uniforms(size_t size, double min=0, double max=1) const;
 
 private:
+    Node at(int64_t idx) const;
+
     InternalRNG rng;
     TRNG* head;
     uint64_t id;
+    uint32_t type;
+
     // runtime flag [int] vs [string]?
+    friend class TRNG;
 };
 
 
@@ -88,9 +98,14 @@ public:
     uint64_t str_idx(const std::string&);
 
 private:
-    Node root;
+    void register_node(const Node&);
+    Node get_node(uint64_t) const;
+    bool registered(uint64_t) const;
+
     uint64_t ctr;
     std::unordered_map<std::string, uint64_t> string_indexes;
+    std::unordered_map<uint64_t, Node> modified_nodes;
+    friend class Node;
 };
 
 

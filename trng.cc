@@ -14,8 +14,40 @@ static double u64_to_uniform01(uint64_t rnd) {
 
 // InternalRNG impl
 
-RNGState InternalRNG::aes(RNGState in) const
+InternalRNG::InternalRNG(uint64_t seed)
+: key{.i64={seed, 0}}
+, revision(0)
+{}
+
+InternalRNG::InternalRNG(RNGState state)
+: key(state)
+, revision(0)
+{}
+
+uint64_t InternalRNG::get_value(uint64_t idx) const
 {
+    return aes(idx).i64[0];
+}
+
+uint64_t InternalRNG::get_id(uint64_t idx) const
+{
+    RNGState ret = aes(idx);
+    return ret.i64[0] ^ ret.i64[1];
+}
+
+InternalRNG InternalRNG::descend(int64_t idx) const
+{
+    return InternalRNG(aes(idx));
+}
+
+void InternalRNG::reshuffle()
+{
+    revision++;
+}
+
+RNGState InternalRNG::aes(uint64_t idx) const
+{
+    RNGState in{.i64={idx, revision}};
     AES_KEY aes_key;
     RNGState out;
 
@@ -24,53 +56,53 @@ RNGState InternalRNG::aes(RNGState in) const
     return out;
 }
 
-InternalRNG::InternalRNG(uint64_t seed)
-{
-    key = {.i64={seed, 0}};
-}
-
-InternalRNG::InternalRNG(RNGState state)
-: key(state)
-{}
-
-uint64_t InternalRNG::get_value(uint64_t idx) const
-{
-    RNGState state = {};
-    state.i64[0] = idx;
-    return aes(state).i64[0];
-}
-
-uint64_t InternalRNG::get_id() const
-{
-    RNGState state = {};
-    RNGState ret = aes(state);
-    return ret.i64[0] ^ ret.i64[1];
-}
-
-InternalRNG InternalRNG::descend(int64_t idx) const
-{
-    RNGState state = {};
-    state.i64[0] = idx;
-    return InternalRNG(aes(state));
-}
-
 
 // Node impl
+
+Node::Node()
+: rng(0)
+, head(nullptr)
+, id(0)
+, type(0)
+{}
 
 Node::Node(InternalRNG rng_, TRNG* head_, uint64_t id_)
 : rng(rng_)
 , head(head_)
 , id(id_)
+, type(0)
 {}
+
+void Node::reshuffle()
+{
+    rng.reshuffle();
+    head->register_node(*this);
+}
+
+Node Node::at(int64_t idx) const
+{
+    uint64_t newid = rng.get_id(idx);
+    if (head->registered(newid))
+        return head->get_node(newid);
+    return Node(rng.descend(idx), head, newid);
+}
 
 Node Node::operator[](int64_t idx) const
 {
-    return Node(rng.descend(idx), head, rng.get_id()^idx);
+    if (type == 0)
+        const_cast<uint32_t&>(type) = 1;
+    if (type != 1)
+        throw "Mixing string and integer accessors in TRNG! Strings first.";
+    return this->at(idx);
 }
 
 Node Node::operator[](const std::string& kwd) const
 {
-    return (*this)[head->str_idx(kwd)];
+    if (type == 0)
+        const_cast<uint32_t&>(type) = 2;
+    if (type != 2)
+        throw "Mixing string and integer accessors in TRNG! Integers first.";
+    return this->at(head->str_idx(kwd));
 }
 
 uint64_t Node::u64() const
@@ -121,10 +153,16 @@ std::vector<double>&& Node::uniforms(size_t size, double min, double max) const
 
 
 // TRNG impl
+
 TRNG::TRNG(uint64_t seed)
-: root(InternalRNG(seed), this, 0)
-, ctr(0)
+: ctr(0)
 {
+    register_node(Node(InternalRNG(seed), this, 0));
+}
+
+Node TRNG::get_root()
+{
+    return get_node(0);
 }
 
 uint64_t TRNG::str_idx(const std::string& str)
@@ -134,11 +172,20 @@ uint64_t TRNG::str_idx(const std::string& str)
     return string_indexes[str];
 }
 
-Node TRNG::get_root()
+void TRNG::register_node(const Node& node)
 {
-    return root;
+    modified_nodes[node.id] = node;
 }
 
+Node TRNG::get_node(uint64_t id) const
+{
+    return modified_nodes.at(id);
+}
+
+bool TRNG::registered(uint64_t id) const
+{
+    return modified_nodes.contains(id);
+}
 
 
 }; // namespace TRNG
